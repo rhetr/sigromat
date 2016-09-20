@@ -36,7 +36,7 @@ showConnection connection =
     let
         cstr = 
             connection.source.client.name ++ ":" ++ connection.source.name ++
-            "->" ++ connection.sink.client.name ++ ":" ++ connection.sink.client.name
+            "->" ++ connection.sink.client.name ++ ":" ++ connection.sink.name
     in
         div [] [ text cstr ]
 
@@ -90,15 +90,15 @@ update msg graph =
         AddClient client ->
             ((addClient client graph), Cmd.none)
         RmClient client ->
-            ((addClient client graph), Cmd.none)
+            ((removeClient client graph), Cmd.none)
         AddPort client_port ->
             ((addPort client_port graph), Cmd.none)
         RmPort client_port ->
-            ((addPort client_port graph), Cmd.none)
+            ((removePort client_port graph), Cmd.none)
         AddConnection connection ->
             ((addConnection connection graph), Cmd.none)
         RmConnection connection ->
-            ((addConnection connection graph), Cmd.none)
+            ((removeConnection connection graph), Cmd.none)
 
         SendMessage ->
             ({ graph | sendMsg = "" }, WebSocket.send server graph.sendMsg )
@@ -123,13 +123,10 @@ subs graph =
 -- 5 - /remove/port
 -- 6 - /remove/connection
 
+atos : Int -> Array String -> String
 atos i array =
     Array.get i array |> Maybe.withDefault ""
 
-conv : String -> Int
-conv str =
-    str |> String.toInt |> Result.toMaybe |> Maybe.withDefault 0
-        
 receive : String -> Graph -> Cmd Msg
 receive msg graph = 
     let
@@ -142,11 +139,10 @@ receive msg graph =
 
 makeClient : Array String -> Cmd Msg
 makeClient args =
-    if (Array.length args) == 2 then
+    if (Array.length args) == 1 then
         let
             client = createClient 
-                ( atos 0 args |> conv )
-                ( atos 1 args)
+                ( atos 0 args )
         in 
             AddClient client |> Cmd.Extra.message
     else 
@@ -154,14 +150,13 @@ makeClient args =
 
 makePort : Array String -> Graph -> Cmd Msg
 makePort args graph =
-    if (Array.length args) == 5 then
+    if (Array.length args) == 4 then
         let
             client_port = createPort 
-                ( atos 0 args |> conv )
-                ( atos 1 args)
-                ( atos 2 args |> conv )
-                ( atos 3 args |> conv )
-                ( atos 4 args |> conv )
+                ( atos 0 args )
+                ( atos 1 args )
+                ( atos 2 args )
+                ( atos 3 args )
                 graph
         in 
             AddPort client_port |> Cmd.Extra.message
@@ -173,9 +168,9 @@ makeConnection args graph =
     if (Array.length args) == 3 then
         let
             connection = createConnection 
-                ( atos 0 args |> conv )
-                ( atos 1 args |> conv )
-                ( atos 2 args |> conv )
+                ( atos 0 args )
+                ( atos 1 args )
+                ( atos 2 args )
                 graph
         in 
             AddConnection connection |> Cmd.Extra.message
@@ -183,21 +178,21 @@ makeConnection args graph =
         Cmd.none
 
 
-delClient : Int -> Graph -> Cmd Msg 
-delClient client_id graph =
+delClient : String -> Graph -> Cmd Msg 
+delClient client_name graph =
     let
-        client = getClientByID client_id graph
+        client = getClientByName client_name graph
     in 
         RmClient client |> Cmd.Extra.message
 
-delPort : Int -> Graph -> Cmd Msg 
-delPort port_id graph =
+delPort : String -> Graph -> Cmd Msg 
+delPort port_name graph =
     let 
-        client_port = getPortByID port_id graph
+        client_port = getPortByName port_name graph
     in 
         RmPort client_port |> Cmd.Extra.message
 
-delConnection : Int -> Graph -> Cmd Msg 
+delConnection : String -> Graph -> Cmd Msg 
 delConnection connection_id graph =
     let 
         connection = getConnectionByID connection_id graph
@@ -216,17 +211,17 @@ processMsg msg graph =
         if cmd == "1" then
             makeClient args
         else if cmd == "2" then
-            delClient ( atos 0 args |> conv ) graph
+            delClient ( atos 0 args  ) graph
 
         else if cmd == "3" then
             makePort args graph
         else if cmd == "4" then
-            delPort ( atos 0 args |> conv ) graph
+            delPort ( atos 0 args  ) graph
 
         else if cmd == "5" then
             makeConnection args graph
         else if cmd == "6" then
-            delConnection ( atos 0 args |> conv ) graph
+            delConnection ( atos 0 args  ) graph
         else 
             Cmd.none
 

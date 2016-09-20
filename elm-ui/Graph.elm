@@ -4,20 +4,18 @@ type PortType = Audio | MIDI
 type FlowType = Source | Sink
 
 type alias Client = 
-    { id : Int
-    , name : String
+    { name : String
     }
 
 type alias Port =
-    { id : Int
-    , name : String
+    { name : String
     , client : Client
     , portType : PortType
     , flow : FlowType
     }
 
 type alias Connection =
-    { id : Int
+    { id : String
     , source : Port
     , sink : Port
     }
@@ -31,40 +29,38 @@ type alias Graph =
     }
 
 
-emptyClient = (Client 0 "")
-emptyAudioSource = (Port 0 "" emptyClient Audio Source)
-emptyAudioSink = (Port 0 "" emptyClient Audio Sink)
-emptyMIDISource = (Port 0 "" emptyClient MIDI Source)
-emptyMIDISink = (Port 0 "" emptyClient MIDI Sink)
-emptyConnection = (Connection 0 emptyAudioSource emptyAudioSink)
+emptyClient = (Client "")
+emptyAudioSource = (Port "" emptyClient Audio Source)
+emptyAudioSink = (Port "" emptyClient Audio Sink)
+emptyMIDISource = (Port "" emptyClient MIDI Source)
+emptyMIDISink = (Port "" emptyClient MIDI Sink)
+emptyConnection = (Connection "" emptyAudioSource emptyAudioSink)
 
 -- Setters
 
-createClient : Int -> String -> Client
-createClient client_id client_name =
-    { id = client_id
-    , name = client_name
+createClient : String -> Client
+createClient client_name =
+    { name = client_name
     }
 
--- create from IDs
-createPort : Int -> String -> Int -> Int -> Int -> Graph -> Port
-createPort port_id port_name port_client_id port_type_int port_flow_int graph =
+-- port_name includes "client:" prefix
+createPort : String -> String -> String -> String -> Graph -> Port
+createPort port_name port_client_name port_type_str port_flow_str graph =
     let 
-        port_client = getClientByID port_client_id graph
+        port_client = getClientByName port_client_name graph
     in
-        { id = port_id
-        , name = port_name
+        { name = port_name
         , client = port_client
-        , portType = intToPortType port_type_int
-        , flow = intToFlowType port_flow_int
+        , portType = strToPortType port_type_str
+        , flow = strToFlowType port_flow_str
         }
 
 -- create from IDs
-createConnection : Int -> Int -> Int -> Graph -> Connection
-createConnection connection_id source_id sink_id graph =
+createConnection : String -> String -> String -> Graph -> Connection
+createConnection connection_id source_name sink_name graph =
     let 
-        source_port = getPortByID source_id graph
-        sink_port = getPortByID sink_id graph
+        source_port = getPortByName source_name graph
+        sink_port = getPortByName sink_name graph
     in 
         { id = connection_id
         , source = source_port
@@ -101,42 +97,63 @@ addConnection connection graph =
     in 
         { graph | connections = new_connections }
 
+
+removeFromList : a -> List a -> List a
+removeFromList a listA =
+    List.filter (\c -> c /= a) listA
+
+-- removeClientFromList : Client -> Graph -> List Client
+-- removeClientFromList client graph =
+--     List.filter (\c -> c /= client) graph.clients
+-- 
+-- removePortFromList : Port -> List Port -> List Port
+-- removePortFromList client_port ports =
+--     List.filter (\c -> c /= client_port) ports
+-- 
+-- removeConnectionFromList : Connection -> Graph -> List Connection
+-- removeConnectionFromList connection graph = 
+--     List.filter (\c -> c /= connection) graph.connections
+
 removeClient : Client -> Graph -> Graph
 removeClient client graph =
     let
-        new_clients = List.filter (\c -> c /= client) graph.clients
+        new_clients = removeFromList client graph.clients
+        new_ports = List.foldr removeFromList graph.ports (getClientPorts client graph.ports)
+        new_connections = List.foldr removeFromList graph.connections (getClientConnections client graph.ports graph.connections)
     in
-        { graph | clients = new_clients }
+        Graph new_clients new_ports new_connections graph.sendMsg graph.recvMsg
+
 
 removePort : Port -> Graph -> Graph
 removePort client_port graph =
-    let
-        new_ports = List.filter (\c -> c /= client_port) graph.ports
+    let 
+        new_ports = removeFromList client_port graph.ports
+        new_connections = List.foldr removeFromList graph.connections (getPortConnections client_port graph.connections)
     in
-        { graph | ports = new_ports }
+        Graph graph.clients new_ports new_connections graph.sendMsg graph.recvMsg
 
 removeConnection : Connection -> Graph -> Graph
 removeConnection connection graph =
     let
-        new_connections = List.filter (\c -> c /= connection) graph.connections
+        new_connections = removeFromList connection graph.connections
     in
         { graph | connections = new_connections }
 
 -- Getters
 
-getClientByID : Int -> Graph -> Client
-getClientByID client_id graph =
-    List.filter (\client -> client.id == client_id) graph.clients 
+getClientByName : String -> Graph -> Client
+getClientByName client_name graph =
+    List.filter (\client -> client.name == client_name) graph.clients 
         |> List.head 
         |> Maybe.withDefault emptyClient
 
-getPortByID : Int -> Graph -> Port
-getPortByID port_id graph =
-    List.filter (\client_port -> client_port.id == port_id) graph.ports
+getPortByName : String -> Graph -> Port
+getPortByName port_name graph =
+    List.filter (\client_port -> client_port.name == port_name) graph.ports
         |> List.head 
         |> Maybe.withDefault emptyAudioSource
 
-getConnectionByID : Int -> Graph -> Connection
+getConnectionByID : String -> Graph -> Connection
 getConnectionByID connection_id graph =
     List.filter (\connection -> connection.id == connection_id) graph.connections
         |> List.head 
@@ -162,24 +179,31 @@ getClientPorts : Client -> List Port -> List Port
 getClientPorts client ports =
     List.filter (\client_port -> client_port.client == client) ports
 
-getSourceConnections : Port -> List Connection -> List Connection
-getSourceConnections client_port connections =
-    List.filter (\connection -> connection.source == client_port) connections
+-- need to remove dupes
+getClientConnections : Client -> List Port -> List Connection -> List Connection
+getClientConnections client ports connections =
+    getClientPorts client ports
+        |> List.map (flip getPortConnections connections)
+        |> List.concat
 
-getSinkConnections : Port -> List Connection -> List Connection
-getSinkConnections client_port connections =
-    List.filter (\connection -> connection.sink == client_port) connections
+getPortConnections : Port -> List Connection -> List Connection
+getPortConnections client_port connections =
+    case client_port.flow of
+        Source ->
+            List.filter (\connection -> connection.source == client_port) connections
+        Sink ->
+            List.filter (\connection -> connection.sink == client_port) connections
 
 -- Helpers
 
-intToPortType : Int -> PortType
-intToPortType portTypeInt =
-    if portTypeInt == 0
+strToPortType : String -> PortType
+strToPortType portTypeStr =
+    if portTypeStr == "Audio"
     then Audio
     else MIDI
 
-intToFlowType : Int -> FlowType
-intToFlowType flowTypeInt = 
-    if flowTypeInt == 0
+strToFlowType : String -> FlowType
+strToFlowType flowTypeStr = 
+    if flowTypeStr == "Source"
     then Source
     else Sink

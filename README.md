@@ -31,27 +31,45 @@ messages to gui:
 5. add connection $connection -> { out = $outport, in = $inport }
 6. remove connection $connection
 
-/add
-  /client
-    id 		int
-    name 	str
-  /port
-    id 		int
-    name 	str
-    client 	int
-    type 	int
-    flow 	int
-  /connection
-    id		int
-    out 	int
-    in 		int
-
-/remove
-  /client
-    id 		int
-  /port
-    id		int
-  /connection
-    id		int
-
 must have unique ID
+
+https://www.npmjs.com/package/osc
+http://stackoverflow.com/questions/16108714/haskell-removing-duplicates-from-a-list
+
+- delete client isn't deleting related ports and connections
+- duplicates need to be removed from getClientConnections
+- ports should include the prefix in their name
+- things need to be renamable (from the backend) while retaining the same position
+- ignore invalid ports and connections
+- batch isn't working
+- configure sort hierarchy
+
+
+using parameters
+
+/refresh
+
+/client/add 
+	name 
+/client/remove 
+	name
+/client/port/add
+	name client type flow
+/client/port/remove
+	name
+
+/client/port/connection/add
+	id source sink
+/client/port/connection/remove
+	id
+
+
+using address as parameters
+/client_name/add
+/client_name/remove
+
+/client_name/port_name/add type flow
+/client_name/port_name/remove
+
+/client_name/source_port/connection_name/add sink_port
+/client_name/source_port/connection_name/remove sink_port
