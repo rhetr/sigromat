@@ -30,6 +30,14 @@ type alias Graph =
     , recvMsg : List String
     }
 
+
+emptyClient = (Client 0 "")
+emptyAudioSource = (Port 0 "" emptyClient Audio Source)
+emptyAudioSink = (Port 0 "" emptyClient Audio Sink)
+emptyMIDISource = (Port 0 "" emptyClient MIDI Source)
+emptyMIDISink = (Port 0 "" emptyClient MIDI Sink)
+emptyConnection = (Connection 0 emptyAudioSource emptyAudioSink)
+
 -- Setters
 
 createClient : Int -> String -> Client
@@ -120,13 +128,19 @@ getClientByID : Int -> Graph -> Client
 getClientByID client_id graph =
     List.filter (\client -> client.id == client_id) graph.clients 
         |> List.head 
-        |> Maybe.withDefault (Client 0 "")
+        |> Maybe.withDefault emptyClient
 
 getPortByID : Int -> Graph -> Port
 getPortByID port_id graph =
     List.filter (\client_port -> client_port.id == port_id) graph.ports
         |> List.head 
-        |> Maybe.withDefault (Port 0 "" (Client 0 "") Audio Source)
+        |> Maybe.withDefault emptyAudioSource
+
+getConnectionByID : Int -> Graph -> Connection
+getConnectionByID connection_id graph =
+    List.filter (\connection -> connection.id == connection_id) graph.connections
+        |> List.head 
+        |> Maybe.withDefault emptyConnection
 
 getSourcePorts : List Port -> List Port
 getSourcePorts ports =

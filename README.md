@@ -53,3 +53,5 @@ messages to gui:
     id		int
   /connection
     id		int
+
+must have unique ID
