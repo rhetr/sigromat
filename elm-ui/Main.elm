@@ -6,7 +6,7 @@ import Cmd.Extra
 
 import Messages exposing (..)
 import Graph exposing (..)
-import DebugView exposing (..)
+import View exposing (..)
 import Helpers exposing (..)
 
 
