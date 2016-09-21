@@ -4,7 +4,7 @@ import Html exposing (Html)
 import Html exposing (h2, h3, button, div, span, text, input, param)
 import Html exposing (table, tbody, tfoot, tr, th, td)
 import Html.Attributes exposing (value, style)
-import Html.Events exposing (onClick, onInput, on, onMouseOver, onMouseLeave, keyCode)
+import Html.Events exposing (onClick, onInput, on, onMouseUp, onMouseOver, onMouseLeave, keyCode)
 import Json.Decode as Json
 import String
 
@@ -193,11 +193,14 @@ makeSourceRow : List Port -> List Connection -> Port -> Html Msg
 makeSourceRow sinks connections source =
     let 
         trContent = 
-            [ th [] [ div [] [ span [] [ text (source.client.name ++ ":" ++ source.name) ] ] ] ]
+            [ th [] [ div [ style [("transform", "rotate(45deg)")]] [ span [] [ text (source.client.name ++ ":" ++ source.name) ] ] ] ]
             ++ List.map (makeSinkRow connections source.name) sinks
     in 
         tr [] trContent
 
+
+boxC =
+    [("box-shadow","inset 0px 0px 0px 10px white"), ("background-color","black")]
 
 makeSinkRow : List Connection -> String -> Port -> Html Msg
 makeSinkRow connections source_name sink =
@@ -207,27 +210,34 @@ makeSinkRow connections source_name sink =
                 |> List.map .sink
                 |> List.member sink
         show =
-            if connected then "x" else "."
+            if connected then boxC else []
         message =
             if connected
             then ("/client/port/connection/remove " ++ source_name ++ " " ++ sink.name)
             else ("/client/port/connection/add " ++ source_name ++ " " ++ sink.name)
     in
         td 
-            [ style [("border","1px solid black")]
+            [ style ([("border","1px solid black")] ++ show)
             ]
             [ div
-                [ style []
+                [ style [("width","50px"),("height","50px"), ("color","white")]
                 , onMouseOver ( InputMessage message )
                 , onMouseLeave ( InputMessage "" )
                 , onClick SendMessage
+                , onMouseUp ( InputMessage message )
                 ]
-                [ text show ]
+                [ text "." ]
             ]
+
+
+sinkLabel =
+    [ ("transform","rotate(45deg)")
+    , ("transform-origin", "left bottom")
+    ]
 
 makeSinkFootHeader : Port -> Html msg
 makeSinkFootHeader sink =
-    th [] [ div [] [ span [] [ text (sink.client.name ++ ":" ++ sink.name) ] ] ]
+    th [] [ div [ style sinkLabel ] [ span [] [ text (sink.client.name ++ ":" ++ sink.name) ] ] ]
 
 matrixTable : Graph -> Html Msg
 matrixTable graph = 
@@ -235,7 +245,7 @@ matrixTable graph =
         sources = getSourcePorts graph.ports
         sinks = getSinkPorts graph.ports
     in
-        table [ style [("border-collapse","collapse") ] ]
+        table [ style [("border-collapse","collapse"), ("transform","rotate(-45deg)") ] ]
             [ tbody [] (List.map (makeSourceRow sinks graph.connections) sources)
             , tfoot [] ([ th [] [] ] ++ (List.map makeSinkFootHeader sinks) )
             ]
