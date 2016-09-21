@@ -1,14 +1,11 @@
-import Html exposing (Html, h2, button, div, text, input)
-import Html.Attributes exposing (value)
-import Html.App exposing (program)
-import Html.Events exposing (onClick, onInput)
-
 import WebSocket
 import String
 import Array exposing (Array)
 import Cmd.Extra
+import Json.Decode
 
 import Graph exposing (..)
+import View exposing (..)
 
 
 main =
@@ -16,61 +13,9 @@ main =
 
 
 -- MODEL
-
 server : String
 server =
       "wss://echo.websocket.org"
-
--- VIEW
-
-showClient : Client -> Html msg
-showClient client =
-    div [] [ text (client.name ++ "\n") ]
-
-showPort : Port -> Html msg
-showPort client_port =
-    div [] [ text (client_port.client.name ++ ":" ++ client_port.name ++ " - " ++ (toString client_port.portType) ++ " - " ++ (toString client_port.flow)) ]
-
-showConnection : Connection -> Html msg
-showConnection connection =
-    let
-        cstr = 
-            connection.source.client.name ++ ":" ++ connection.source.name ++
-            "->" ++ connection.sink.client.name ++ ":" ++ connection.sink.name
-    in
-        div [] [ text cstr ]
-
-inputCmd : Graph -> Html Msg
-inputCmd graph =
-    div []
-        [ h2 [] [ text "command" ]
-        , input [ onInput InputMessage, value graph.sendMsg ] []
-        , button [ onClick SendMessage ] [ text "send" ]
-        ]
-
-receivedMsgs : Graph -> Html msg
-receivedMsgs graph = 
-    div [] 
-        [ h2 [] [ text "received messages" ]
-        , div [] (List.map viewMessage (List.reverse graph.recvMsg))
-        ]
-
-viewMessage : String -> Html msg
-viewMessage msg =
-    div [] [ text msg ]
-
-view : Graph -> Html Msg
-view graph =
-    div []
-        [ h2 [] [ text "clients" ]
-        , div [] (List.map showClient graph.clients)
-        , h2 [] [ text "ports" ]
-        , div [] (List.map showPort graph.ports)
-        , h2 [] [ text "connections" ]
-        , div [] (List.map showConnection graph.connections)
-        , inputCmd graph
-        , receivedMsgs graph
-        ]
 
 type Msg
     = AddClient Client
@@ -82,60 +27,88 @@ type Msg
     | SendMessage
     | RecvMessage String
     | InputMessage String
+    | NoOp
 
-
-update : Msg -> Graph -> (Graph, Cmd Msg)
-update msg graph =
-    case msg of 
-        AddClient client ->
-            ((addClient client graph), Cmd.none)
-        RmClient client ->
-            ((removeClient client graph), Cmd.none)
-        AddPort client_port ->
-            ((addPort client_port graph), Cmd.none)
-        RmPort client_port ->
-            ((removePort client_port graph), Cmd.none)
-        AddConnection connection ->
-            ((addConnection connection graph), Cmd.none)
-        RmConnection connection ->
-            ((removeConnection connection graph), Cmd.none)
-
-        SendMessage ->
-            ({ graph | sendMsg = "" }, WebSocket.send server graph.sendMsg )
-        RecvMessage msg ->
-            ({ graph | recvMsg = msg :: graph.recvMsg }, receive msg graph )
-        InputMessage msg ->
-            ({ graph | sendMsg = msg }, Cmd.none)
-
+-- INIT
 init : (Graph, Cmd Msg)
 init =
-  ({ clients = [], ports = [], connections = [], sendMsg = "", recvMsg = [] }, Cmd.none)
+  { clients = []
+  , ports = []
+  , connections = []
+  , sendMsg = ""
+  , recvMsg = [] 
+  } ! []
 
 -- subscribe to server
 subs : Graph -> Sub Msg
 subs graph =
     WebSocket.listen server RecvMessage
 
--- 1 - /add/client
--- 2 - /add/port
--- 3 - /add/connection
--- 4 - /remove/client
--- 5 - /remove/port
--- 6 - /remove/connection
+-- UPDATE
+update : Msg -> Graph -> (Graph, Cmd Msg)
+update msg graph =
+    case msg of 
+        AddClient client ->
+            addClient client graph ! []
+        RmClient client ->
+            removeClient client graph ! []
+        AddPort client_port ->
+            addPort client_port graph ! []
+        RmPort client_port ->
+            removePort client_port graph ! []
+        AddConnection connection ->
+            addConnection connection graph ! []
+        RmConnection connection ->
+            removeConnection connection graph ! []
 
-atos : Int -> Array String -> String
-atos i array =
-    Array.get i array |> Maybe.withDefault ""
+        SendMessage ->
+            { graph | sendMsg = "" } 
+            ! [WebSocket.send server graph.sendMsg]
+        RecvMessage msg ->
+            { graph | recvMsg = msg :: graph.recvMsg }
+            ! [receive msg graph]
+        InputMessage msg ->
+            { graph | sendMsg = msg }
+            ! []
 
+        NoOp ->
+            graph ! []
+
+-- splits messages
 receive : String -> Graph -> Cmd Msg
 receive msg graph = 
     let
         msgs = msg 
             |> String.split "?"
-            |> List.sort
+            |> List.sortWith (listStringComparison "/")
     in 
-        Cmd.batch (List.map (flip processMsg graph) msgs)
+        msgs
+            |> List.map (flip processMsg graph)
+            |> Cmd.batch
 
+processMsg : String -> Graph -> Cmd Msg
+processMsg msg graph =
+    let
+        messageList = String.split " " msg 
+        cmd = List.head messageList 
+            |> Maybe.withDefault "none"  
+        args = List.tail messageList |> Maybe.withDefault [""] |> Array.fromList
+    in 
+        case cmd  of
+            "/client/add" ->
+                makeClient args
+            "/client/remove" ->
+                delClient args graph.clients
+            "/client/port/add" ->
+                makePort args graph.clients graph.ports
+            "/client/port/remove" ->
+                delPort args graph.ports
+            "/client/port/connection/add" ->
+                makeConnection args graph.ports
+            "/client/port/connection/remove" ->
+                delConnection args graph.connections
+            _ ->
+                Cmd.none
 
 makeClient : Array String -> Cmd Msg
 makeClient args =
@@ -148,80 +121,70 @@ makeClient args =
     else 
         Cmd.none
 
-makePort : Array String -> Graph -> Cmd Msg
-makePort args graph =
+makePort : Array String -> List Client -> List Port -> Cmd Msg
+makePort args clients ports =
     if (Array.length args) == 4 then
         let
             client_port = createPort 
-                ( atos 0 args )
                 ( atos 1 args )
+                ( atos 0 args )
                 ( atos 2 args )
                 ( atos 3 args )
-                graph
+                clients
+                ports
         in 
             AddPort client_port |> Cmd.Extra.message
     else 
         Cmd.none
 
-makeConnection : Array String -> Graph -> Cmd Msg
-makeConnection args graph =
-    if (Array.length args) == 3 then
+makeConnection : Array String -> List Port -> Cmd Msg
+makeConnection args ports =
+    if (Array.length args) == 2 then
         let
             connection = createConnection 
                 ( atos 0 args )
                 ( atos 1 args )
-                ( atos 2 args )
-                graph
+                ports
         in 
             AddConnection connection |> Cmd.Extra.message
     else 
         Cmd.none
 
 
-delClient : String -> Graph -> Cmd Msg 
-delClient client_name graph =
+delClient : Array String -> List Client -> Cmd Msg 
+delClient args clients =
     let
-        client = getClientByName client_name graph
+        client_name = atos 0 args
+        client = getClientByName client_name clients
     in 
         RmClient client |> Cmd.Extra.message
 
-delPort : String -> Graph -> Cmd Msg 
-delPort port_name graph =
+delPort : Array String -> List Port -> Cmd Msg 
+delPort args ports =
     let 
-        client_port = getPortByName port_name graph
+        port_name = atos 0 args
+        client_port = getPortByName port_name ports
     in 
         RmPort client_port |> Cmd.Extra.message
 
-delConnection : String -> Graph -> Cmd Msg 
-delConnection connection_id graph =
+delConnection : Array String -> List Connection -> Cmd Msg 
+delConnection args connections =
     let 
-        connection = getConnectionByID connection_id graph
+        source_name = atos 0 args
+        sink_name = atos 1 args
+        connection = getConnectionByNames source_name sink_name connections
     in 
         RmConnection connection |> Cmd.Extra.message
 
-
-processMsg : String -> Graph -> Cmd Msg
-processMsg msg graph =
+atos : Int -> Array String -> String
+atos i array =
+    Array.get i array |> Maybe.withDefault ""
+    
+listStringComparison : String -> String -> String -> Order
+listStringComparison char a b =
     let
-        messageList = String.split " " msg 
-        cmd = List.head messageList 
-            |> Maybe.withDefault "none"  
-        args = List.tail messageList |> Maybe.withDefault [""] |> Array.fromList
+        charInA = String.indices "/" a
+        charInB = String.indices "/" b
     in 
-        if cmd == "1" then
-            makeClient args
-        else if cmd == "2" then
-            delClient ( atos 0 args  ) graph
-
-        else if cmd == "3" then
-            makePort args graph
-        else if cmd == "4" then
-            delPort ( atos 0 args  ) graph
-
-        else if cmd == "5" then
-            makeConnection args graph
-        else if cmd == "6" then
-            delConnection ( atos 0 args  ) graph
-        else 
-            Cmd.none
+        compare charInA charInB
 

@@ -36,32 +36,24 @@ must have unique ID
 https://www.npmjs.com/package/osc
 http://stackoverflow.com/questions/16108714/haskell-removing-duplicates-from-a-list
 
-- delete client isn't deleting related ports and connections
 - duplicates need to be removed from getClientConnections
 - ports should include the prefix in their name
 - things need to be renamable (from the backend) while retaining the same position
-- ignore invalid ports and connections
 - batch isn't working
-- configure sort hierarchy
 
 
 using parameters
 
 /refresh
 
-/client/add 
-	name 
-/client/remove 
-	name
-/client/port/add
-	name client type flow
-/client/port/remove
-	name
+/client/add name 
+/client/remove name
 
-/client/port/connection/add
-	id source sink
-/client/port/connection/remove
-	id
+/client/port/add name client type flow
+/client/port/remove name
+
+/client/port/connection/add id source sink
+/client/port/connection/remove id
 
 
 using address as parameters
@@ -73,3 +65,5 @@ using address as parameters
 
 /client_name/source_port/connection_name/add sink_port
 /client_name/source_port/connection_name/remove sink_port
+
+
