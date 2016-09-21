@@ -1,11 +1,11 @@
 module View exposing (..)
 
 import Html exposing (Html)
-import Html exposing (h2, h3, button, div, span, text, input)
+import Html exposing (h2, h3, button, div, span, text, input, param)
 import Html exposing (table, tbody, tfoot, tr, th, td)
 import Html.Attributes exposing (value, style)
-import Html.Events exposing (onClick, onInput, onMouseOver)
-import Json.Decode
+import Html.Events exposing (onClick, onInput, on, onMouseOver, onMouseLeave, keyCode)
+import Json.Decode as Json
 import String
 
 import Graph exposing (..)
@@ -59,7 +59,7 @@ debugView graph =
             ]
         ]
 
-matrixDiv : Graph -> Html msg
+matrixDiv : Graph -> Html Msg
 matrixDiv graph =
     let 
         audioGraph = { graph | ports = (graph.ports |> getAudioPorts) }
@@ -137,6 +137,8 @@ inputCmd graph =
             , value graph.sendMsg
             ] []
         , button [ onClick SendMessage ] [ text "send" ]
+        , h3 [] [ text "input" ]
+        , div [ style [("height", "10pt")] ] [ text graph.sendMsg ]
         ]
 
 
@@ -148,7 +150,7 @@ onEnter msg =
             then msg 
             else NoOp
     in
-        Json.Decode.map tagger Html.Events.keyCode
+        Json.map tagger keyCode
             |> Html.Events.on "keydown"
 
 receivedMsgs : Graph -> Html msg
@@ -187,39 +189,47 @@ parsedMessage msg =
 
 
 
-makeSourceRow : List Port -> List Connection -> Port -> Html msg
+makeSourceRow : List Port -> List Connection -> Port -> Html Msg
 makeSourceRow sinks connections source =
     let 
         trContent = 
             [ th [] [ div [] [ span [] [ text (source.client.name ++ ":" ++ source.name) ] ] ] ]
-            ++ List.map (makeSinkRow connections) sinks
+            ++ List.map (makeSinkRow connections source.name) sinks
     in 
         tr [] trContent
 
 
-makeSinkRow : List Connection -> Port -> Html msg
-makeSinkRow connections sink =
+makeSinkRow : List Connection -> String -> Port -> Html Msg
+makeSinkRow connections source_name sink =
     let 
         connected =
-            List.map .sink connections
+            List.filter (\connection -> connection.source.name == source_name) connections
+                |> List.map .sink
                 |> List.member sink
         show =
             if connected then "x" else "."
+        message =
+            if connected
+            then ("/client/port/connection/remove " ++ source_name ++ " " ++ sink.name)
+            else ("/client/port/connection/add " ++ source_name ++ " " ++ sink.name)
     in
         td 
             [ style [("border","1px solid black")]
             ]
-            [ text show ]
-
--- onMouseOver : Msg -> Html.Attribute Msg
--- onMouseOver msg =
---     on "mouseover" (Json.Decode. )
+            [ div
+                [ style []
+                , onMouseOver ( InputMessage message )
+                , onMouseLeave ( InputMessage "" )
+                , onClick SendMessage
+                ]
+                [ text show ]
+            ]
 
 makeSinkFootHeader : Port -> Html msg
 makeSinkFootHeader sink =
     th [] [ div [] [ span [] [ text (sink.client.name ++ ":" ++ sink.name) ] ] ]
 
-matrixTable : Graph -> Html msg
+matrixTable : Graph -> Html Msg
 matrixTable graph = 
     let
         sources = getSourcePorts graph.ports
