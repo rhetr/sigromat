@@ -1,11 +1,13 @@
+import Html.App exposing (program)
 import WebSocket
 import String
 import Array exposing (Array)
 import Cmd.Extra
-import Json.Decode
 
+import Messages exposing (..)
 import Graph exposing (..)
-import View exposing (..)
+import DebugView exposing (..)
+import Helpers exposing (..)
 
 
 main =
@@ -17,17 +19,6 @@ server : String
 server =
       "wss://echo.websocket.org"
 
-type Msg
-    = AddClient Client
-    | RmClient Client
-    | AddPort Port
-    | RmPort Port
-    | AddConnection Connection
-    | RmConnection Connection
-    | SendMessage
-    | RecvMessage String
-    | InputMessage String
-    | NoOp
 
 -- INIT
 init : (Graph, Cmd Msg)
@@ -175,16 +166,4 @@ delConnection args connections =
         connection = getConnectionByNames source_name sink_name connections
     in 
         RmConnection connection |> Cmd.Extra.message
-
-atos : Int -> Array String -> String
-atos i array =
-    Array.get i array |> Maybe.withDefault ""
-    
-listStringComparison : String -> String -> String -> Order
-listStringComparison char a b =
-    let
-        charInA = String.indices "/" a
-        charInB = String.indices "/" b
-    in 
-        compare charInA charInB
 
