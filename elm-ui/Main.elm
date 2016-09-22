@@ -70,20 +70,20 @@ receive : String -> Graph -> Cmd Msg
 receive msg graph = 
     let
         msgs = msg 
-            |> String.split "?"
+            |> String.split "&"
+            |> List.map String.trim
             |> List.sortWith (listStringComparison "/")
     in 
         msgs
             |> List.map (flip processMsg graph)
             |> Cmd.batch
 
+
 processMsg : String -> Graph -> Cmd Msg
 processMsg msg graph =
     let
-        messageList = String.split " " msg 
-        cmd = List.head messageList 
-            |> Maybe.withDefault "none"  
-        args = List.tail messageList |> Maybe.withDefault [""] |> Array.fromList
+        (cmd, argsList) = splitCommandArgs msg
+        args = Array.fromList argsList
     in 
         case cmd  of
             "/client/add" ->

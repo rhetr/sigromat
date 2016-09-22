@@ -164,7 +164,9 @@ viewMessage : String -> Html msg
 viewMessage msg =
     div [] [ text msg ]
 
-
+viewMessageSpan : String -> String -> Html msg
+viewMessageSpan color msg =
+    span [ style [("margin-right","5px"), ("color",color)] ] [ text msg ]
 
 parsedMsgs : Graph -> Html msg
 parsedMsgs graph =
@@ -173,20 +175,28 @@ parsedMsgs graph =
         , div [] (List.map parsedMessage (List.reverse graph.recvMsg))
         ]
 
+
+showCmdArgs : String -> List String -> Html msg
+showCmdArgs cmd args =
+    div []
+        [ (viewMessageSpan "black" cmd)
+        , (viewMessageSpan "blue" (String.join " " args))
+        ]
+
+
 parsedMessage : String -> Html msg
 parsedMessage msg =
-    let msgs = msg
-        |> String.split "?"
-        |> List.sortWith (listStringComparison "/")
-        |> List.map viewMessage
+    let 
+        (cmds, args) = msg
+            |> String.split "&"
+            |> List.map String.trim
+            |> List.sortWith (listStringComparison "/")
+            |> List.map splitCommandArgs
+            |> List.unzip
     in
         div 
-            [ style
-                [ ("border-top", "1px dotted black")
-                ]
-            ]
-            msgs
-
+            [ style [ ("border-top", "1px dotted black") ] ]
+            (List.map2 showCmdArgs cmds args)
 
 
 makeSourceRow : List Port -> List Connection -> Port -> Html Msg
