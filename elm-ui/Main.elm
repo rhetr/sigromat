@@ -68,15 +68,11 @@ update msg graph =
 -- splits messages
 receive : String -> Graph -> Cmd Msg
 receive msg graph = 
-    let
-        msgs = msg 
-            |> String.split "&"
-            |> List.map String.trim
-            |> List.sortWith (listStringComparison "/")
-    in 
-        msgs
-            |> List.map (flip processMsg graph)
-            |> Cmd.batch
+    msg |> String.split "&"
+        |> List.map String.trim
+        |> List.sortWith (listStringComparison "/")
+        |> List.map (flip processMsg graph)
+        |> Cmd.batch
 
 
 processMsg : String -> Graph -> Cmd Msg

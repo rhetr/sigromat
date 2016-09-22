@@ -137,8 +137,6 @@ inputCmd graph =
             , value graph.sendMsg
             ] []
         , button [ onClick SendMessage ] [ text "send" ]
-        , h3 [] [ text "input" ]
-        , div [ style [("height", "10pt")] ] [ text graph.sendMsg ]
         ]
 
 
@@ -162,7 +160,7 @@ receivedMsgs graph =
 
 viewMessage : String -> Html msg
 viewMessage msg =
-    div [] [ text msg ]
+    div [] [ text (msg ++ " &") ]
 
 viewMessageSpan : String -> String -> Html msg
 viewMessageSpan color msg =
@@ -256,6 +254,6 @@ matrixTable graph =
         sinks = getSinkPorts graph.ports
     in
         table [ style [("border-collapse","collapse"), ("transform","rotate(-45deg)") ] ]
-            [ tbody [] (List.map (makeSourceRow sinks graph.connections) sources)
-            , tfoot [] ([ th [] [] ] ++ (List.map makeSinkFootHeader sinks) )
+            [ tbody [] (List.map (makeSourceRow (List.reverse sinks) graph.connections) sources)
+            , tfoot [] ([ th [] [] ] ++ (List.map makeSinkFootHeader (List.reverse sinks)) )
             ]
