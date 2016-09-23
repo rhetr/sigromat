@@ -90,8 +90,8 @@ processMsg graph msg =
     let
         (cmd, argsList) = splitCommandArgs msg
         args = Array.fromList argsList
-    in 
-            case cmd  of
+        message =
+            case cmd of
                 "/client/add" ->
                     makeClient args
                 "/client/remove" ->
@@ -105,20 +105,22 @@ processMsg graph msg =
                 "/client/port/connection/remove" ->
                     delConnection args graph.connections
                 _ ->
-                    NoOp
+                    Nothing
+    in
+        Maybe.withDefault NoOp message
 
-makeClient : Array String -> Msg
+makeClient : Array String -> Maybe Msg
 makeClient args =
     if (Array.length args) == 1 then
         let
             client = createClient 
                 ( atos 0 args )
         in 
-            AddClient client 
+            AddClient client |> Just
     else 
-        NoOp
+        Nothing
 
-makePort : Array String -> List Client -> List Port -> Msg
+makePort : Array String -> List Client -> List Port -> Maybe Msg
 makePort args clients ports =
     if (Array.length args) == 4 then
         let
@@ -130,11 +132,15 @@ makePort args clients ports =
                 clients
                 ports
         in 
-            AddPort client_port 
+            case client_port of
+                Just the_port ->
+                    Just (AddPort the_port)
+                Nothing ->
+                    Nothing
     else 
-        NoOp
+        Nothing
 
-makeConnection : Array String -> List Port -> Msg
+makeConnection : Array String -> List Port -> Maybe Msg
 makeConnection args ports =
     if (Array.length args) == 2 then
         let
@@ -143,33 +149,47 @@ makeConnection args ports =
                 ( atos 1 args )
                 ports
         in 
-            AddConnection connection 
+            case connection of
+                Just the_connection ->
+                    Just (AddConnection the_connection)
+                Nothing ->
+                    Nothing
     else 
-        NoOp
+        Nothing
 
-
-delClient : Array String -> List Client -> Msg 
+delClient : Array String -> List Client -> Maybe Msg
 delClient args clients =
     let
         client_name = atos 0 args
-        client = getClientByName client_name clients
+        maybe_client = getClientByName client_name clients
     in 
-        RmClient client 
+        case maybe_client of
+            Just client ->
+                Just (RmClient client)
+            Nothing ->
+                Nothing
 
-delPort : Array String -> List Port -> Msg 
+delPort : Array String -> List Port -> Maybe Msg
 delPort args ports =
     let 
         port_name = atos 0 args
-        client_port = getPortByName port_name ports
+        maybe_port = getPortByName port_name ports
     in 
-        RmPort client_port 
+        case maybe_port of
+            Just client_port ->
+                Just (RmPort client_port)
+            Nothing ->
+                Nothing
 
-delConnection : Array String -> List Connection -> Msg 
+delConnection : Array String -> List Connection -> Maybe Msg
 delConnection args connections =
     let 
         source_name = atos 0 args
         sink_name = atos 1 args
-        connection = getConnectionByNames source_name sink_name connections
+        maybe_connection = getConnectionByNames source_name sink_name connections
     in 
-        RmConnection connection 
-
+        case maybe_connection of
+            Just connection ->
+                Just (RmConnection connection)
+            Nothing ->
+                Nothing

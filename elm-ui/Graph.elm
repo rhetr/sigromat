@@ -43,45 +43,64 @@ createClient client_name =
     }
 
 -- port_name includes "client:" prefix
-createPort : String -> String -> String -> String -> List Client -> List Port -> Port
+createPort : String -> String -> String -> String -> List Client -> List Port -> Maybe Port
 createPort port_name port_client_name port_type_str port_flow_str clients ports =
     let
-        port_client = getClientByName port_client_name clients
-        client_exists = port_client /= emptyClient
-        port_exists =
-            getClientPorts port_client ports
-                |> List.map .name
-                |> List.member port_name
+        maybe_client = getClientByName port_client_name clients
+        maybe_type = strToPortType port_type_str
+        maybe_flow = strToFlowType port_flow_str
+        all_just =
+                isJust maybe_client
+                && isJust maybe_type
+                && isJust maybe_flow
     in
-        case (not port_exists && client_exists) of
-            True ->
-                { name = port_name
-                , client = port_client
-                , portType = strToPortType port_type_str
-                , flow = strToFlowType port_flow_str
-                }
+        case all_just of
             False ->
-                emptyAudioSource
+                Nothing
+            True ->
+                let
+                    -- none of these should default
+                    port_client = Maybe.withDefault emptyClient maybe_client
+                    port_type = Maybe.withDefault Audio maybe_type
+                    port_flow = Maybe.withDefault Source maybe_flow
+                    port_exists  =
+                        getClientPorts port_client ports
+                            |> List.map .name
+                            |> List.member port_name
+                in
+                    case (not port_exists)  of
+                        True ->
+                            Just
+                            { name = port_name
+                            , client = port_client
+                            , portType = port_type
+                            , flow = port_flow
+                            }
+                        False ->
+                            Nothing
+
 
 -- needs to connect by porttype and flowtype
-createConnection : String -> String -> List Port -> Connection
+createConnection : String -> String -> List Port -> Maybe Connection
 createConnection source_name sink_name ports =
     let 
-        source_port = getPortByName source_name ports
-        sink_port = getPortByName sink_name ports
+        source_port = getPortByName source_name ports |> Maybe.withDefault emptyAudioSource
+        sink_port = getPortByName sink_name ports |> Maybe.withDefault emptyAudioSink
         validConnection = 
-            source_port.portType == sink_port.portType 
+               source_port /= emptyAudioSource
+            && sink_port /= emptyAudioSink
+            && source_port.portType == sink_port.portType
             && source_port.flow == Source 
             && sink_port.flow == Sink
     in 
         case validConnection of
             True ->
+                Just
                 { source = source_port
                 , sink = sink_port
                 }
             False -> 
-                emptyConnection
-
+                Nothing
 
 addClient : Client -> Graph -> Graph
 addClient client graph =
@@ -98,7 +117,6 @@ addPort client_port graph =
     let
         new_ports = 
             if List.member client_port graph.ports
-                || client_port == emptyAudioSource
             then graph.ports
             else client_port :: graph.ports
     in 
@@ -109,7 +127,6 @@ addConnection connection graph =
     let
         new_connections = 
             if List.member connection graph.connections 
-                || connection == emptyConnection
             then graph.connections
             else connection :: graph.connections
     in 
@@ -153,23 +170,20 @@ removeConnection connection graph =
 
 -- Getters
 
-getClientByName : String -> List Client -> Client
+getClientByName : String -> List Client -> Maybe Client
 getClientByName client_name clients =
     List.filter (\client -> client.name == client_name) clients 
         |> List.head 
-        |> Maybe.withDefault emptyClient
 
-getPortByName : String -> List Port -> Port
+getPortByName : String -> List Port -> Maybe Port
 getPortByName port_name ports =
     List.filter (\client_port -> client_port.name == port_name) ports
         |> List.head 
-        |> Maybe.withDefault emptyAudioSource
 
-getConnectionByNames : String -> String -> List Connection -> Connection
+getConnectionByNames : String -> String -> List Connection -> Maybe Connection
 getConnectionByNames source_name sink_name connections =
     List.filter (\connection -> connection.source.name == source_name && connection.sink.name == sink_name) connections
         |> List.head
-        |> Maybe.withDefault emptyConnection
         
 getSourcePorts : List Port -> List Port
 getSourcePorts ports =
@@ -244,16 +258,24 @@ makeSetList list =
     List.foldr uniqueAdd [] list
 
 -- these need to be able to fail
-strToPortType : String -> PortType
+strToPortType : String -> Maybe PortType
 strToPortType portTypeStr =
     case portTypeStr of
-        "Audio" -> Audio
-        "MIDI" -> MIDI
-        _ -> MIDI
+        "Audio" -> Just Audio
+        "MIDI" -> Just MIDI
+        _ -> Nothing
 
-strToFlowType : String -> FlowType
+strToFlowType : String -> Maybe FlowType
 strToFlowType flowTypeStr = 
     case flowTypeStr of
-        "Source" -> Source
-        "Sink" -> Sink
-        _ -> Sink
+        "Source" -> Just Source
+        "Sink" -> Just Sink
+        _ -> Nothing
+
+isJust : Maybe a -> Bool
+isJust a =
+    case a of
+        Just a ->
+            True
+        Nothing ->
+            False
