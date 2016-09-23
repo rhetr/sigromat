@@ -1,5 +1,6 @@
 import Html.App exposing (program)
 import WebSocket
+import Task
 import String
 import Array exposing (Array)
 import Cmd.Extra
@@ -39,6 +40,8 @@ subs graph =
 update : Msg -> Graph -> (Graph, Cmd Msg)
 update msg graph =
     case msg of 
+        NoOp ->
+            graph ! []
         AddClient client ->
             addClient client graph ! []
         RmClient client ->
@@ -55,60 +58,67 @@ update msg graph =
         SendMessage ->
             { graph | sendMsg = "" } 
             ! [WebSocket.send server graph.sendMsg]
-        RecvMessage msg ->
-            { graph | recvMsg = msg :: graph.recvMsg }
-            ! [receive msg graph]
         InputMessage msg ->
             { graph | sendMsg = msg }
             ! []
+        RecvMessage msg ->
+            { graph | recvMsg = msg :: graph.recvMsg }
+            ! [receive msg graph]
 
-        NoOp ->
-            graph ! []
+        ChainMessages strings ->
+            let
+                chain string' (graph', cmds) =
+                    let 
+                        msg' = processMsg graph' string'
+                        (graph'', cmds') = update msg' graph'
+                    in 
+                        graph'' ! [ cmds, cmds' ]
+            in 
+                List.foldl chain (graph ! []) strings
 
 -- splits messages
 receive : String -> Graph -> Cmd Msg
-receive msg graph = 
+receive msg graph =
     msg |> String.split "&"
         |> List.map String.trim
         |> List.sortWith (listStringComparison "/")
-        |> List.map (flip processMsg graph)
-        |> Cmd.batch
+        |> ChainMessages
+        |> Cmd.Extra.message
 
-
-processMsg : String -> Graph -> Cmd Msg
-processMsg msg graph =
+processMsg : Graph -> String -> Msg
+processMsg graph msg =
     let
         (cmd, argsList) = splitCommandArgs msg
         args = Array.fromList argsList
     in 
-        case cmd  of
-            "/client/add" ->
-                makeClient args
-            "/client/remove" ->
-                delClient args graph.clients
-            "/client/port/add" ->
-                makePort args graph.clients graph.ports
-            "/client/port/remove" ->
-                delPort args graph.ports
-            "/client/port/connection/add" ->
-                makeConnection args graph.ports
-            "/client/port/connection/remove" ->
-                delConnection args graph.connections
-            _ ->
-                Cmd.none
+            case cmd  of
+                "/client/add" ->
+                    makeClient args
+                "/client/remove" ->
+                    delClient args graph.clients
+                "/client/port/add" ->
+                    makePort args graph.clients graph.ports
+                "/client/port/remove" ->
+                    delPort args graph.ports
+                "/client/port/connection/add" ->
+                    makeConnection args graph.ports
+                "/client/port/connection/remove" ->
+                    delConnection args graph.connections
+                _ ->
+                    NoOp
 
-makeClient : Array String -> Cmd Msg
+makeClient : Array String -> Msg
 makeClient args =
     if (Array.length args) == 1 then
         let
             client = createClient 
                 ( atos 0 args )
         in 
-            AddClient client |> Cmd.Extra.message
+            AddClient client 
     else 
-        Cmd.none
+        NoOp
 
-makePort : Array String -> List Client -> List Port -> Cmd Msg
+makePort : Array String -> List Client -> List Port -> Msg
 makePort args clients ports =
     if (Array.length args) == 4 then
         let
@@ -120,11 +130,11 @@ makePort args clients ports =
                 clients
                 ports
         in 
-            AddPort client_port |> Cmd.Extra.message
+            AddPort client_port 
     else 
-        Cmd.none
+        NoOp
 
-makeConnection : Array String -> List Port -> Cmd Msg
+makeConnection : Array String -> List Port -> Msg
 makeConnection args ports =
     if (Array.length args) == 2 then
         let
@@ -133,33 +143,33 @@ makeConnection args ports =
                 ( atos 1 args )
                 ports
         in 
-            AddConnection connection |> Cmd.Extra.message
+            AddConnection connection 
     else 
-        Cmd.none
+        NoOp
 
 
-delClient : Array String -> List Client -> Cmd Msg 
+delClient : Array String -> List Client -> Msg 
 delClient args clients =
     let
         client_name = atos 0 args
         client = getClientByName client_name clients
     in 
-        RmClient client |> Cmd.Extra.message
+        RmClient client 
 
-delPort : Array String -> List Port -> Cmd Msg 
+delPort : Array String -> List Port -> Msg 
 delPort args ports =
     let 
         port_name = atos 0 args
         client_port = getPortByName port_name ports
     in 
-        RmPort client_port |> Cmd.Extra.message
+        RmPort client_port 
 
-delConnection : Array String -> List Connection -> Cmd Msg 
+delConnection : Array String -> List Connection -> Msg 
 delConnection args connections =
     let 
         source_name = atos 0 args
         sink_name = atos 1 args
         connection = getConnectionByNames source_name sink_name connections
     in 
-        RmConnection connection |> Cmd.Extra.message
+        RmConnection connection 
 

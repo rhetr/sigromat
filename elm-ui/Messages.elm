@@ -14,3 +14,4 @@ type Msg
     | RecvMessage String
     | InputMessage String
     | NoOp
+    | ChainMessages (List String)
