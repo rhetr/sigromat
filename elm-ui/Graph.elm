@@ -69,7 +69,8 @@ createConnection source_name sink_name ports =
     let 
         source_port = getPortByName source_name ports
         sink_port = getPortByName sink_name ports
-        validConnection = source_port.portType == sink_port.portType 
+        validConnection = 
+            source_port.portType == sink_port.portType 
             && source_port.flow == Source 
             && sink_port.flow == Sink
     in 
