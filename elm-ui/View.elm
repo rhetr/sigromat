@@ -193,7 +193,7 @@ parsedMessage msg =
             |> List.unzip
     in
         div 
-            [ style [ ("border-top", "1px dotted black") ] ]
+                                [ style [ ("border-top", "1px dotted black") ] ]
             (List.map2 showCmdArgs cmds args)
 
 
@@ -208,7 +208,7 @@ makeSourceRow sinks connections source =
 
 
 boxC =
-    [("box-shadow","inset 0px 0px 0px 10px white"), ("background-color","black")]
+    [("box-shadow","inset 0px 0px 0px 6px white"), ("background-color","black")]
 
 makeSinkRow : List Connection -> String -> Port -> Html Msg
 makeSinkRow connections source_name sink =
@@ -225,10 +225,16 @@ makeSinkRow connections source_name sink =
             else ("/client/port/connection/add " ++ source_name ++ " " ++ sink.name)
     in
         td 
-            [ style ([("border","1px solid black")] ++ show)
+            [ style ( 
+                [ ("border","1px solid black")
+                ] ++ show )
             ]
             [ div
-                [ style [("width","50px"),("height","50px"), ("color","white")]
+                [ style 
+                    [ ("width", "30px")
+                    , ("height", "30px")
+                    , ("color","white")
+                    ]
                 , onMouseOver ( InputMessage message )
                 , onMouseLeave ( InputMessage "" )
                 , onClick SendMessage
@@ -241,6 +247,7 @@ makeSinkRow connections source_name sink =
 sinkLabel =
     [ ("transform","rotate(45deg)")
     , ("transform-origin", "left bottom")
+    , ("width","0")
     ]
 
 makeSinkFootHeader : Port -> Html msg
@@ -253,7 +260,14 @@ matrixTable graph =
         sources = getSourcePorts graph.ports
         sinks = getSinkPorts graph.ports
     in
-        table [ style [("border-collapse","collapse"), ("transform","rotate(-45deg)") ] ]
+        table 
+            [ style 
+                [ ("border-collapse","collapse")
+                , ("table-layout", "fixed")
+                , ("transform","rotate(-45deg)") 
+                , ("margin", "0 auto")
+                ] 
+            ]
             [ tbody [] (List.map (makeSourceRow (List.reverse sinks) graph.connections) sources)
             , tfoot [] ([ th [] [] ] ++ (List.map makeSinkFootHeader (List.reverse sinks)) )
             ]
