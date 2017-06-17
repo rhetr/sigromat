@@ -19,6 +19,8 @@ main =
 server : String
 server =
       "wss://echo.websocket.org"
+-- server =
+--     "ws://localhost:9090"
 
 
 -- INIT
