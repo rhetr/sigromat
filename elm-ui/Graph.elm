@@ -230,8 +230,8 @@ getMIDIConnections connections =
 
 -- Helpers
 
-sortConnections : Connection -> Connection -> Order
-sortConnections a b =
+compareConnections : Connection -> Connection -> Order
+compareConnections a b =
     let
         sourceA = a.source.name
         sinkA = a.sink.name
